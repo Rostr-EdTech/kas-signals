@@ -1,0 +1,9 @@
+// Cloudflare Workers static assets: serve only the built app files.
+// Build command: mkdir -p dist && cp -r index.html css js img dist/   Deploy command: npx wrangler deploy
+{
+  "name": "kas-signals",
+  "compatibility_date": "2026-10-19",
+  "assets": {
+    "directory": "./dist"
+  }
+}
