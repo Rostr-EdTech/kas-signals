@@ -70,6 +70,18 @@ Combine them, e.g. `?view=ratio&range=All&log=1`.
 
 The embedded card uses the visitor's own settings from the full app, if any.
 
+## Deployment (kaspa.rostr.one)
+
+Cloudflare Pages, connected to this repository:
+
+| Setting | Value |
+|---|---|
+| Framework preset | None |
+| Build command | `mkdir -p dist && cp -r index.html css js img dist/` |
+| Build output directory | `dist` |
+
+The build step publishes only the app files, so `tests/` (development helpers) and `tools/` are not served.
+
 ## Publish your own copy (free)
 
 It's a static site: any static host works.
