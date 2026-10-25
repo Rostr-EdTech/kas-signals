@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Seed demo settings</title>
+<!-- Development helper: fills this browser's settings with sample values, then opens the app. -->
+<script>
+  localStorage.setItem("kas-signals-settings-v1", JSON.stringify({
+    kasUnits: 150000, btcUnits: 0.05, dcaUsd: 150, dcaDays: 14, dcaKasPct: 67,
+    targetKasPct: 60, extraBuyUsd: 50, profile: "balanced", overrides: {},
+    goalUsd: 50000, goalDate: "2030-12-31",
+    holdings: { ETH: 0.8, SOL: 12, XMR: 2 }, trendYears: 2, horizonYears: 3,
+  }));
+  location.replace("../index.html" + location.search);
+</script>

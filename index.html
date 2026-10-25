@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KAS Signals</title>
+<meta name="description" content="Free, private KAS/BTC dashboard: trend and sentiment signals, a personal DCA and rebalancing plan, KAS/BTC ratio chart, mining calculator. Runs in your browser; nothing is tracked.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%2370c7ba'/%3E%3C/svg%3E">
+<script>
+  // Apply the saved theme before the page paints (no light flash in dark mode)
+  try { const t = localStorage.getItem("kas-signals-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+  <div>
+    <h1 id="site-name">KAS Signals</h1>
+    <p class="byline" id="byline" hidden>by <a id="byline-link" href="#" rel="noopener"></a></p>
+    <p class="tag">Trend, sentiment and the KAS/BTC ratio, turned into a plan you set. Private: your settings never leave this browser.</p>
+  </div>
+  <span class="donate-cta"><span class="small muted">Like this tool?</span>
+    <button id="donate-btn" type="button" class="donate">&#9829; Donate KAS</button></span>
+  </div>
+  <div class="top-actions">
+    <span id="updated" class="muted">Loading market data…</span>
+    <button id="refresh" type="button">Refresh</button>
+    <button id="theme" type="button" title="Switch between automatic, light and dark">Theme: Auto</button>
+    <button id="open-guide" type="button">Guide</button>
+    <button id="open-settings" type="button" class="primary">Your plan</button>
+  </div>
+</header>
+
+<div id="error" class="error" hidden></div>
+<div id="setup-hint" class="hint" hidden>
+  Add your holdings and plan under <b>Your plan</b> to see your portfolio, buy split and rebalancing. Nothing is sent anywhere.
+</div>
+
+<main>
+  <section class="cards">
+    <article class="card" id="signal-card">
+      <h2>Market signal</h2>
+      <div class="badge" id="signal-badge">…</div>
+      <p id="signal-text"></p>
+      <ul id="signal-reasons" class="reasons"></ul>
+      <p class="muted small" id="backdrop"></p>
+    </article>
+
+    <article class="card" id="plan-card">
+      <h2>This period's plan</h2>
+      <div class="big" id="plan-buy">…</div>
+      <p id="plan-reason"></p>
+      <p id="plan-extra" hidden></p>
+      <p id="plan-trim" hidden></p>
+      <p class="muted small" id="plan-period"></p>
+    </article>
+
+    <article class="card" id="portfolio-card">
+      <h2>Your portfolio</h2>
+      <div class="big" id="pf-value">–</div>
+      <div class="alloc" id="alloc" aria-hidden="true"></div>
+      <div class="alloc-legend small" id="alloc-legend"></div>
+      <p id="pf-split" class="small"></p>
+      <p id="pf-rebalance"></p>
+    </article>
+  </section>
+
+  <section class="card chart-card" id="chart-card">
+    <div class="toolbar">
+      <div class="seg" id="mode-seg">
+        <button data-mode="price" class="on" type="button">KAS price</button>
+        <button data-mode="ratio" type="button">KAS/BTC ratio</button>
+        <button data-mode="compare" type="button">Compare</button>
+      </div>
+      <div class="seg" id="range-seg">
+        <button data-range="3M" type="button">3M</button>
+        <button data-range="6M" type="button">6M</button>
+        <button data-range="1Y" class="on" type="button">1Y</button>
+        <button data-range="2Y" type="button">2Y</button>
+        <button data-range="3Y" type="button">3Y</button>
+        <button data-range="5Y" type="button">5Y</button>
+        <button data-range="All" type="button">All</button>
+      </div>
+      <div class="seg">
+        <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+        <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+      </div>
+      <label class="price-only"><input type="checkbox" data-opt="sma20" checked> 20-day</label>
+      <label class="price-only"><input type="checkbox" data-opt="sma50" checked> 50-day</label>
+      <label class="price-only"><input type="checkbox" data-opt="sma200" checked> 200-day</label>
+      <label class="price-only"><input type="checkbox" data-opt="zones" checked> Zones / bands</label>
+      <label class="price-only"><input type="checkbox" data-opt="log"> Log scale</label>
+      <div class="compare-only chips" id="peer-chips"></div>
+      <button id="share" type="button">Share image</button>
+    </div>
+    <p class="muted small" id="view-status"></p>
+    <div class="chart-wrap"><canvas id="chart" aria-label="KAS chart"></canvas></div>
+    <details class="howto">
+      <summary>How to read this chart</summary>
+      <div id="howto-body"></div>
+    </details>
+  </section>
+
+  <section class="cards two">
+    <article class="card" id="report-card">
+      <h2>Signal report card</h2>
+      <p class="muted small">How your current thresholds would have done on the full price history. Computed in your browser.</p>
+      <div id="report-body">…</div>
+      <details class="explain">
+        <summary>What do these numbers mean?</summary>
+        <ul>
+          <li><b>Times</b>: how many separate occasions the condition was met. Several days in a row count once; a new occasion needs a 20-day gap.</li>
+          <li><b>+30% within 30d</b>: how often KAS rose at least 30% above that day's price at some point in the next 30 days. It measures the chance of a sharp jump soon after.</li>
+          <li><b>Median 90d</b>: the typical price change 90 days later. Half the occasions did better, half did worse.</li>
+          <li><b>Any day (baseline)</b> is the comparison point: a signal is only useful if it beats what a random day would have given you.</li>
+          <li><b>Tilt vs fixed split</b>: the same money on the same schedule, either always split your usual way (fixed), or shifted to the coin that was cheap vs the other (tilt). The numbers are what each $100 invested became. If both are below $100, the period lost money and the tilt simply lost less. The two halves check that it worked consistently, not just once.</li>
+        </ul>
+        <p class="small">Few occasions means weak evidence. Most of this history is one long downtrend. <a href="#" data-guide="report">More in the guide</a></p>
+      </details>
+    </article>
+    <article class="card" id="goal-card">
+      <h2>Goal projection</h2>
+      <div id="goal-body"></div>
+      <details class="explain">
+        <summary>What this shows (and doesn't)</summary>
+        <ul>
+          <li>It answers: <b>what would my portfolio be worth on my goal date?</b> Not when you would reach the goal.</li>
+          <li>It starts from your holdings at today's prices, grows each coin at the scenario's steady yearly rate, and adds every regular buy on schedule.</li>
+          <li>It doesn't include real price swings, which are much larger than a steady rate, or your tilts, extra buys and rebalancing.</li>
+        </ul>
+      </details>
+    </article>
+  </section>
+
+  <section class="card" id="trend-card">
+    <h2>If recent trends continue</h2>
+    <div class="toolbar">
+      <span class="small muted">Trend from the last</span>
+      <div class="seg" id="trend-seg">
+        <button type="button" data-years="1">1Y</button><button type="button" data-years="2">2Y</button><button type="button" data-years="3">3Y</button>
+      </div>
+      <span class="small muted">Project over</span>
+      <div class="seg" id="horizon-seg">
+        <button type="button" data-h="1">1Y</button><button type="button" data-h="3">3Y</button><button type="button" data-h="5">5Y</button><button type="button" data-h="0">To goal date</button>
+      </div>
+    </div>
+    <div id="trend-body"><p class="muted">Add your holdings under <b>Your plan</b> to see this.</p></div>
+    <details class="explain">
+      <summary>How this works (and why to be careful)</summary>
+      <ul>
+        <li>Each holding grows at its own <b>average yearly rate over the period you pick</b> (1, 2 or 3 years), and your regular KAS/BTC buys are added on schedule.</li>
+        <li>Crypto trends rarely continue: the same coin can show +80%/yr over one period and −40%/yr over another. The line under the table shows your total under all three lookbacks so you can see how much the answer depends on that choice.</li>
+        <li>Coins with shorter history use what's available, marked with *.</li>
+        <li>Big yearly rates compound into huge numbers over several years. Treat this as "what the recent past implies", not a forecast.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="cards">
+    <article class="card" id="network-card">
+      <h2>Kaspa network &amp; mining</h2>
+      <div id="network-body">…</div>
+      <div class="mine">
+        <label>Miner <select id="miner"></select></label>
+        <label>Electricity $/kWh <input id="kwh" type="number" min="0" step="0.01" value="0.10"></label>
+      </div>
+      <div id="mining-body"></div>
+    </article>
+  </section>
+
+  <section class="card" id="networks-card">
+    <h2>Kaspa vs other networks</h2>
+    <p class="muted small">Live market data from CoinGecko. Specs are simplified and change as networks upgrade; verify before quoting.</p>
+    <div class="table-scroll"><table class="networks" id="networks-table"></table></div>
+    <div class="cards two summary">
+      <div><h3>Where Kaspa stands out</h3><ul id="stands-out"></ul></div>
+      <div><h3>Where others lead</h3><ul id="others-lead"></ul></div>
+    </div>
+    <p class="muted small">"KAS price at their market cap" is simple arithmetic (their market cap ÷ KAS circulating supply), not a prediction.</p>
+  </section>
+</main>
+
+<dialog id="settings">
+  <form method="dialog" id="settings-form">
+    <h2>Your plan</h2>
+    <p class="muted small">Saved only in this browser. Never sent anywhere.</p>
+    <fieldset>
+      <legend>Holdings</legend>
+      <label>KAS you hold <input name="kasUnits" type="number" min="0" step="any"></label>
+      <label>BTC you hold <input name="btcUnits" type="number" min="0" step="any"></label>
+      <p class="small" style="margin:10px 0 4px"><b>Other tokens</b> <span class="muted">(shown in your portfolio and trend projection)</span></p>
+      <div id="other-holdings"></div>
+      <div class="add-token">
+        <select id="add-token-sym" aria-label="Token to add"></select>
+        <button type="button" id="add-token">Add token</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Regular buying (DCA)</legend>
+      <label>Amount per buy (USD) <input name="dcaUsd" type="number" min="0" step="1"></label>
+      <label>Every
+        <select name="dcaDays"><option value="7">week</option><option value="14">2 weeks</option><option value="30">month</option></select>
+      </label>
+      <label>Share to KAS (%) <input name="dcaKasPct" type="number" min="0" max="100" step="1"></label>
+      <label>Extra budget on buy-zone signals (USD) <input name="extraBuyUsd" type="number" min="0" step="1"></label>
+    </fieldset>
+    <fieldset>
+      <legend>Allocation &amp; risk</legend>
+      <label>Target KAS share of your KAS + BTC (%) <input name="targetKasPct" type="number" min="0" max="100" step="1"></label>
+      <div class="profiles" id="profiles"></div>
+      <details>
+        <summary>Fine-tune thresholds</summary>
+        <p class="muted small">Leave blank to use the risk profile's value (shown as the placeholder).</p>
+        <div class="grid2" id="thresholds"></div>
+      </details>
+    </fieldset>
+    <fieldset>
+      <legend>Goal (optional)</legend>
+      <label>Target portfolio value (USD) <input name="goalUsd" type="number" min="0" step="100"></label>
+      <label>By <input name="goalDate" type="date"></label>
+    </fieldset>
+    <div class="dialog-actions">
+      <button type="button" id="reset-settings">Reset</button>
+      <button value="done" class="primary">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="donate-dialog" class="donate-dialog">
+  <div class="guide-head"><h2>Like this tool? Donate to support it!</h2><button type="button" id="close-donate">Close</button></div>
+  <p><b>KAS Signals is free, open source, and has no ads or tracking.</b> If it helps you invest with a plan,
+    a donation keeps it running, its data flowing and new features coming.</p>
+  <p class="small muted">Sending KAS confirms in about a second: a nice demo of why Kaspa is worth supporting.</p>
+  <div id="donate-body"></div>
+  <p class="small muted">Thank you! Every donation, big or small, is appreciated.</p>
+</dialog>
+
+<dialog id="guide" class="guide">
+  <div class="guide-head"><h2>Guide: how to use KAS Signals</h2><button type="button" id="close-guide">Close</button></div>
+  <div id="guide-body"></div>
+</dialog>
+
+<footer>
+  <div class="credit" id="credit" hidden>
+    <div>
+      <span class="small muted">Designed and built by</span>
+      <div class="credit-name" id="credit-name"></div>
+      <p class="small" id="credit-tagline"></p>
+    </div>
+    <a class="credit-cta" id="credit-cta" href="#" rel="noopener"></a>
+  </div>
+  <div id="donate" hidden>
+    <h2>Support this free tool</h2>
+    <p class="small">If it helps you, a donation keeps it running. Sending KAS confirms in about a second.</p>
+    <div id="donate-rows"></div>
+  </div>
+  <p class="small"><b>Not financial advice.</b> Signals are historical tendencies from a few years of data, not predictions.
+    Selling or swapping crypto is usually a taxable event. Do your own research.</p>
+  <p class="small muted">Data: prices from <a href="https://www.gate.io" rel="noopener">Gate.io</a>,
+    <a href="https://alternative.me/crypto/fear-and-greed-index/" rel="noopener">Crypto Fear &amp; Greed Index by alternative.me</a>,
+    network data from <a href="https://api.kaspa.org" rel="noopener">api.kaspa.org</a>,
+    market caps from <a href="https://www.coingecko.com" rel="noopener">CoinGecko</a>,
+    Monero prices from <a href="https://www.kraken.com" rel="noopener">Kraken</a>.
+    No cookies, no tracking, no accounts. <span id="repo-link"></span></p>
+</footer>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
